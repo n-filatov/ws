@@ -34,18 +34,22 @@ type FileEntry struct {
 
 // Model is the Bubbletea model for the TUI.
 type Model struct {
-	files      []FileEntry
-	cursor     int
-	gitStatus  map[string]string
-	wsPath     string
-	gitRoot    string
-	cfg        *config.Config
-	mode       mode
-	input      textinput.Model
-	confirmMsg string
-	width      int
-	height     int
-	err        string
+	files         []FileEntry
+	cursor        int    // index into treeOrder
+	scrollOffset  int    // first visible rendered line index
+	treeRendered  string // lipgloss/tree rendered output (plain text)
+	lineToFileIdx []int  // lineToFileIdx[i] = fileIdx for line i, or -1
+	treeOrder     []int  // fileIdx values in top-to-bottom visual order
+	wsPath        string
+	gitRoot       string
+	cfg           *config.Config
+	mode          mode
+	input         textinput.Model
+	confirmMsg    string
+	loading       bool
+	width         int
+	height        int
+	err           string
 }
 
 // New creates a new Model. Call Init() to start.
@@ -62,27 +66,173 @@ func New(wsPath, gitRoot string, cfg *config.Config) Model {
 	}
 }
 
-func (m Model) Init() tea.Cmd {
+// selectedEntry returns the FileEntry currently under the cursor, or nil if none.
+func (m Model) selectedEntry() *FileEntry {
+	if len(m.treeOrder) == 0 || m.cursor >= len(m.treeOrder) {
+		return nil
+	}
+	return &m.files[m.treeOrder[m.cursor]]
+}
+
+// listHeight returns how many tree lines fit in the current terminal.
+func (m Model) listHeight() int {
+	h := m.height - 3
+	if m.mode == modeAddInput || m.mode == modeDeleteConfirm {
+		h -= 2
+	}
+	if h < 1 {
+		h = 1
+	}
+	return h
+}
+
+// lineForCursor returns the rendered line index for the currently selected file.
+func (m Model) lineForCursor() int {
+	if len(m.treeOrder) == 0 || m.cursor >= len(m.treeOrder) {
+		return 0
+	}
+	target := m.treeOrder[m.cursor]
+	for i, idx := range m.lineToFileIdx {
+		if idx == target {
+			return i
+		}
+	}
+	return 0
+}
+
+// withScrollClamped adjusts scrollOffset so the selected line stays visible.
+func (m Model) withScrollClamped() Model {
+	lh := m.listHeight()
+	line := m.lineForCursor()
+
+	if line < m.scrollOffset {
+		m.scrollOffset = line
+	} else if line >= m.scrollOffset+lh {
+		m.scrollOffset = line - lh + 1
+	}
+
+	maxScroll := len(m.lineToFileIdx) - lh
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scrollOffset > maxScroll {
+		m.scrollOffset = maxScroll
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+	return m
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+// refreshMsg signals that an async refresh should start.
+type refreshMsg struct{}
+
+// refreshResultMsg carries the completed result of an async refresh.
+type refreshResultMsg struct {
+	files         []FileEntry
+	treeRendered  string
+	lineToFileIdx []int
+	treeOrder     []int
+	err           string
+}
+
+// errMsg carries an error from a background operation.
+type errMsg struct{ err error }
+
+// ── Async I/O ─────────────────────────────────────────────────────────────────
+
+// doRefresh runs all git/store I/O in a goroutine and returns the result as a Cmd.
+// Nothing in this function touches the model — it is pure data fetching.
+func doRefresh(wsPath, gitRoot string) tea.Cmd {
 	return func() tea.Msg {
-		return refreshMsg{}
+		result := refreshResultMsg{}
+
+		status, err := git.ModifiedFiles(gitRoot)
+		if err != nil {
+			result.err = err.Error()
+			status = map[string]string{}
+		}
+
+		// Auto-add all git-modified files (silent, best-effort)
+		for absPath := range status {
+			_ = store.Add(wsPath, absPath)
+		}
+
+		paths, err := store.Load(wsPath)
+		if err != nil {
+			if result.err == "" {
+				result.err = err.Error()
+			}
+			paths = []string{}
+		}
+
+		result.files = make([]FileEntry, 0, len(paths))
+		for _, abs := range paths {
+			rel, relErr := filepath.Rel(gitRoot, abs)
+			if relErr != nil {
+				rel = abs
+			}
+			_, statErr := os.Stat(abs)
+			result.files = append(result.files, FileEntry{
+				AbsPath: abs,
+				RelPath: rel,
+				Status:  status[abs],
+				Exists:  statErr == nil,
+			})
+		}
+
+		repoName := filepath.Base(gitRoot)
+		result.treeRendered, result.lineToFileIdx, result.treeOrder =
+			BuildFileTree(result.files, repoName)
+
+		return result
 	}
 }
 
-// refreshMsg triggers a reload of files + git status.
-type refreshMsg struct{}
+// ── Bubbletea lifecycle ───────────────────────────────────────────────────────
+
+func (m Model) Init() tea.Cmd {
+	m.loading = true
+	return doRefresh(m.wsPath, m.gitRoot)
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m = m.withScrollClamped()
 		return m, nil
 
 	case refreshMsg:
-		m = m.refresh()
+		m.loading = true
+		m.err = ""
+		return m, doRefresh(m.wsPath, m.gitRoot)
+
+	case refreshResultMsg:
+		m.loading = false
+		m.err = msg.err
+		m.files = msg.files
+		m.treeRendered = msg.treeRendered
+		m.lineToFileIdx = msg.lineToFileIdx
+		m.treeOrder = msg.treeOrder
+		if m.cursor >= len(m.treeOrder) && m.cursor > 0 {
+			m.cursor = len(m.treeOrder) - 1
+		}
+		m = m.withScrollClamped()
+		return m, nil
+
+	case errMsg:
+		m.err = msg.err.Error()
 		return m, nil
 
 	case tea.KeyMsg:
+		// Ctrl+C always quits regardless of mode
+		if msg.Type == tea.KeyCtrlC {
+			return m, tea.Quit
+		}
 		switch m.mode {
 		case modeNormal:
 			return m.updateNormal(msg)
@@ -101,13 +251,15 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, keys.Up):
-		if len(m.files) > 0 {
-			m.cursor = (m.cursor - 1 + len(m.files)) % len(m.files)
+		if len(m.treeOrder) > 0 {
+			m.cursor = (m.cursor - 1 + len(m.treeOrder)) % len(m.treeOrder)
+			m = m.withScrollClamped()
 		}
 
 	case key.Matches(msg, keys.Down):
-		if len(m.files) > 0 {
-			m.cursor = (m.cursor + 1) % len(m.files)
+		if len(m.treeOrder) > 0 {
+			m.cursor = (m.cursor + 1) % len(m.treeOrder)
+			m = m.withScrollClamped()
 		}
 
 	case key.Matches(msg, keys.Refresh):
@@ -120,10 +272,10 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case key.Matches(msg, keys.Delete):
-		if len(m.files) == 0 {
+		f := m.selectedEntry()
+		if f == nil {
 			break
 		}
-		f := m.files[m.cursor]
 		if f.Status != "" {
 			m.confirmMsg = fmt.Sprintf("%s has uncommitted changes. Revert with git? [y/N/cancel]", f.RelPath)
 			m.mode = modeDeleteConfirm
@@ -131,24 +283,20 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if err := store.Remove(m.wsPath, f.AbsPath); err != nil {
 				m.err = err.Error()
 			} else {
-				m = m.refresh()
-				if m.cursor >= len(m.files) && m.cursor > 0 {
-					m.cursor = len(m.files) - 1
-				}
+				return m, func() tea.Msg { return refreshMsg{} }
 			}
 		}
 
 	case key.Matches(msg, keys.Edit):
-		if len(m.files) == 0 {
+		f := m.selectedEntry()
+		if f == nil {
 			break
 		}
-		f := m.files[m.cursor]
 		if !f.Exists {
 			m.err = "file does not exist on disk"
 			break
 		}
-		editor := m.cfg.Editor
-		cmd := exec.Command(editor, f.AbsPath)
+		cmd := exec.Command(m.cfg.Editor, f.AbsPath)
 		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 			if err != nil {
 				return errMsg{err}
@@ -165,21 +313,17 @@ func (m Model) updateAddInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		val := strings.TrimSpace(m.input.Value())
 		if val != "" {
-			// Resolve relative to cwd, not git root
 			abs, err := filepath.Abs(val)
 			if err == nil {
 				err = store.Add(m.wsPath, abs)
 			}
 			if err != nil {
 				m.err = err.Error()
-			} else {
-				m.err = ""
 			}
 		}
 		m.input.Blur()
 		m.mode = modeNormal
-		m = m.refresh()
-		return m, nil
+		return m, func() tea.Msg { return refreshMsg{} }
 
 	case tea.KeyEsc:
 		m.input.Blur()
@@ -193,11 +337,11 @@ func (m Model) updateAddInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if len(m.files) == 0 {
+	f := m.selectedEntry()
+	if f == nil {
 		m.mode = modeNormal
 		return m, nil
 	}
-	f := m.files[m.cursor]
 
 	switch msg.String() {
 	case "y", "Y":
@@ -209,10 +353,7 @@ func (m Model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = modeNormal
 		m.confirmMsg = ""
-		m = m.refresh()
-		if m.cursor >= len(m.files) && m.cursor > 0 {
-			m.cursor = len(m.files) - 1
-		}
+		return m, func() tea.Msg { return refreshMsg{} }
 
 	case "n", "N":
 		if err := store.Remove(m.wsPath, f.AbsPath); err != nil {
@@ -220,10 +361,7 @@ func (m Model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = modeNormal
 		m.confirmMsg = ""
-		m = m.refresh()
-		if m.cursor >= len(m.files) && m.cursor > 0 {
-			m.cursor = len(m.files) - 1
-		}
+		return m, func() tea.Msg { return refreshMsg{} }
 
 	case "esc", "c", "q":
 		m.mode = modeNormal
@@ -233,46 +371,7 @@ func (m Model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// refresh syncs git status, auto-adds modified files, reloads the list.
-func (m Model) refresh() Model {
-	m.err = ""
-
-	status, err := git.ModifiedFiles(m.gitRoot)
-	if err != nil {
-		m.err = err.Error()
-		status = map[string]string{}
-	}
-	m.gitStatus = status
-
-	// Auto-add all git-modified files (silent)
-	for absPath := range status {
-		_ = store.Add(m.wsPath, absPath)
-	}
-
-	// Reload working set
-	paths, err := store.Load(m.wsPath)
-	if err != nil {
-		m.err = err.Error()
-		paths = []string{}
-	}
-
-	m.files = make([]FileEntry, 0, len(paths))
-	for _, abs := range paths {
-		rel, err := filepath.Rel(m.gitRoot, abs)
-		if err != nil {
-			rel = abs
-		}
-		_, statErr := os.Stat(abs)
-		m.files = append(m.files, FileEntry{
-			AbsPath: abs,
-			RelPath: rel,
-			Status:  status[abs],
-			Exists:  statErr == nil,
-		})
-	}
-
-	return m
-}
+// ── View ─────────────────────────────────────────────────────────────────────
 
 func (m Model) View() string {
 	if m.width == 0 {
@@ -281,90 +380,118 @@ func (m Model) View() string {
 
 	var sb strings.Builder
 
-	// File list
-	listHeight := m.height - 3 // reserve space for bottom bar + padding
+	// Footer occupies 3 lines: prompt/error area (2) + status bar (1).
+	listHeight := m.height - 3
 	if m.mode == modeAddInput || m.mode == modeDeleteConfirm {
 		listHeight -= 2
 	}
+	if listHeight < 1 {
+		listHeight = 1
+	}
 
-	for i, f := range m.files {
-		if i >= listHeight {
-			break
+	if m.loading && len(m.files) == 0 {
+		// Show a simple loading indicator on first load
+		sb.WriteString(styleStatusBar.Render("  Loading…") + "\n")
+		for i := 1; i < listHeight; i++ {
+			sb.WriteString("\n")
+		}
+	} else {
+		// Determine which file is selected
+		selectedFileIdx := -1
+		if len(m.treeOrder) > 0 && m.cursor < len(m.treeOrder) {
+			selectedFileIdx = m.treeOrder[m.cursor]
 		}
 
-		// Build status badge
-		var statusStr string
-		switch f.Status {
-		case "M":
-			statusStr = styleStatusM.Render("M")
-		case "A":
-			statusStr = styleStatusA.Render("A")
-		case "?":
-			statusStr = styleStatusQ.Render("?")
+		// Render tree lines starting from scrollOffset
+		lines := strings.Split(m.treeRendered, "\n")
+		rendered := 0
+		start := m.scrollOffset
+		if start < 0 {
+			start = 0
 		}
+		for i := start; i < len(lines) && rendered < listHeight; i++ {
+			line := lines[i]
 
-		// Build path display
-		pathStr := f.RelPath
-		var row string
-		if !f.Exists {
-			row = styleDim.Render(fmt.Sprintf("  %-*s  [gone]", m.width-12, pathStr))
-		} else {
-			padWidth := m.width - 8
-			if padWidth < 1 {
-				padWidth = 1
+			fileIdx := -1
+			if i < len(m.lineToFileIdx) {
+				fileIdx = m.lineToFileIdx[i]
 			}
-			row = fmt.Sprintf("  %-*s  %s", padWidth, pathStr, statusStr)
+
+			displayLine := "  " + line
+			isSelected := fileIdx >= 0 && fileIdx == selectedFileIdx
+
+			var entry *FileEntry
+			if fileIdx >= 0 {
+				entry = &m.files[fileIdx]
+			}
+
+			if isSelected {
+				suffix := ""
+				if entry != nil {
+					if !entry.Exists {
+						suffix = "  [gone]"
+					} else if entry.Status != "" {
+						suffix = "  " + entry.Status
+					}
+				}
+				plain := displayLine + suffix
+				padded := plain + strings.Repeat(" ", max(0, m.width-lipgloss.Width(plain)))
+				sb.WriteString(styleSelected.Render(padded))
+			} else if entry != nil && !entry.Exists {
+				sb.WriteString(styleDim.Render(displayLine + "  [gone]"))
+			} else if entry != nil && entry.Status != "" {
+				var badge string
+				switch entry.Status {
+				case "M":
+					badge = styleStatusM.Render("M")
+				case "A":
+					badge = styleStatusA.Render("A")
+				case "?":
+					badge = styleStatusQ.Render("?")
+				}
+				sb.WriteString(displayLine + "  " + badge)
+			} else if fileIdx == -1 && i > 0 {
+				sb.WriteString(styleDir.Render(displayLine))
+			} else {
+				sb.WriteString(displayLine)
+			}
+			sb.WriteString("\n")
+			rendered++
 		}
 
-		if i == m.cursor {
-			// Pad the selected row to full width for highlight
-			raw := lipgloss.NewStyle().Render(row)
-			padded := raw + strings.Repeat(" ", max(0, m.width-lipgloss.Width(raw)))
-			sb.WriteString(styleSelected.Render(padded))
-		} else {
-			sb.WriteString(row)
+		// Fill remaining list space
+		for rendered < listHeight {
+			sb.WriteString("\n")
+			rendered++
 		}
-		sb.WriteString("\n")
 	}
 
-	// Fill remaining list space
-	rendered := len(m.files)
-	if rendered > listHeight {
-		rendered = listHeight
-	}
-	for i := rendered; i < listHeight; i++ {
-		sb.WriteString("\n")
-	}
-
-	// Inline prompt area
+	// Prompt / error area
 	switch m.mode {
 	case modeAddInput:
-		sb.WriteString("\n")
-		sb.WriteString(stylePrompt.Render("  Add file: ") + m.input.View())
+		sb.WriteString(stylePrompt.Render("  Add file: ") + m.input.View() + "\n")
 		sb.WriteString("\n")
 	case modeDeleteConfirm:
-		sb.WriteString("\n")
-		sb.WriteString(stylePrompt.Render("  " + m.confirmMsg))
+		sb.WriteString(stylePrompt.Render("  "+m.confirmMsg) + "\n")
 		sb.WriteString("\n")
 	default:
 		if m.err != "" {
-			sb.WriteString("\n")
-			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("  Error: "+m.err))
-			sb.WriteString("\n")
+			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("  Error: "+m.err) + "\n")
 		} else {
-			sb.WriteString("\n\n")
+			sb.WriteString("\n")
 		}
+		sb.WriteString("\n")
 	}
 
 	// Status bar
 	hint := "  j/k move  e edit  a add  d delete  r refresh  q quit"
+	if m.loading {
+		hint = "  Loading…"
+	}
 	sb.WriteString(styleStatusBar.Render(hint))
 
 	return sb.String()
 }
-
-// errMsg carries an error back into the update loop.
-type errMsg struct{ err error }
 
 func max(a, b int) int {
 	if a > b {

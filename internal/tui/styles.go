@@ -14,6 +14,8 @@ var (
 			Foreground(lipgloss.Color("240")).
 			Strikethrough(true)
 
+	styleDir = lipgloss.NewStyle().Foreground(lipgloss.Color("111")) // light blue for directories
+
 	styleStatusM = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // yellow
 	styleStatusA = lipgloss.NewStyle().Foreground(lipgloss.Color("76"))  // green
 	styleStatusQ = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))  // cyan
