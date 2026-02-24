@@ -20,6 +20,10 @@ var (
 	styleStatusA = lipgloss.NewStyle().Foreground(lipgloss.Color("76"))  // green
 	styleStatusQ = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))  // cyan
 
+	styleSearchMatch = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("226")).
+			Bold(true)
+
 	styleStatusBar = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
 			Italic(true)

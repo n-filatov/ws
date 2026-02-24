@@ -7,6 +7,7 @@ type keyMap struct {
 	Down    key.Binding
 	Left    key.Binding
 	Right   key.Binding
+	Search  key.Binding
 	Edit    key.Binding
 	Add     key.Binding
 	Delete  key.Binding
@@ -30,6 +31,10 @@ var keys = keyMap{
 	Right: key.NewBinding(
 		key.WithKeys("right"),
 		key.WithHelp("→", "expand"),
+	),
+	Search: key.NewBinding(
+		key.WithKeys("/"),
+		key.WithHelp("/", "search"),
 	),
 	Edit: key.NewBinding(
 		key.WithKeys("e"),

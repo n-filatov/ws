@@ -14,6 +14,7 @@ import (
 	"github.com/nfilatov/ws/internal/config"
 	"github.com/nfilatov/ws/internal/git"
 	"github.com/nfilatov/ws/internal/store"
+	"github.com/sahilm/fuzzy"
 )
 
 type mode int
@@ -22,6 +23,7 @@ const (
 	modeNormal mode = iota
 	modeAddInput
 	modeDeleteConfirm
+	modeSearch
 )
 
 // FileEntry represents a file in the working set.
@@ -34,23 +36,26 @@ type FileEntry struct {
 
 // Model is the Bubbletea model for the TUI.
 type Model struct {
-	files         []FileEntry
-	cursor        int    // index into navItems
-	scrollOffset  int    // first visible rendered line index
-	treeRendered  string // lipgloss/tree rendered output (plain text)
-	lineToFileIdx []int  // lineToFileIdx[i] = fileIdx for line i, or -1
-	navItems      []navItem
-	collapsedDirs map[string]bool // set of dir paths (no trailing slash) that are collapsed
-	wsPath        string
-	gitRoot       string
-	cfg           *config.Config
-	mode          mode
-	input         textinput.Model
-	confirmMsg    string
-	loading       bool
-	width         int
-	height        int
-	err           string
+	allFiles       []FileEntry // all files from last refresh (source of truth)
+	files          []FileEntry // currently displayed files (filtered or all)
+	cursor         int         // index into navItems
+	scrollOffset   int         // first visible rendered line index
+	treeRendered   string      // lipgloss/tree rendered output (plain text)
+	lineToFileIdx  []int       // lineToFileIdx[i] = fileIdx for line i, or -1
+	navItems       []navItem
+	collapsedDirs  map[string]bool // set of dir paths (no trailing slash) that are collapsed
+	searchQuery    string          // active filter; "" means no filter
+	matchHighlights map[string][]int // RelPath → matched char positions in basename
+	wsPath         string
+	gitRoot        string
+	cfg            *config.Config
+	mode           mode
+	input          textinput.Model
+	confirmMsg     string
+	loading        bool
+	width          int
+	height         int
+	err            string
 }
 
 // New creates a new Model. Call Init() to start.
@@ -89,7 +94,7 @@ func (m Model) selectedEntry() *FileEntry {
 // listHeight returns how many tree lines fit in the current terminal.
 func (m Model) listHeight() int {
 	h := m.height - 3
-	if m.mode == modeAddInput || m.mode == modeDeleteConfirm {
+	if m.mode == modeAddInput || m.mode == modeDeleteConfirm || m.mode == modeSearch {
 		h -= 2
 	}
 	if h < 1 {
@@ -130,6 +135,72 @@ func (m Model) withScrollClamped() Model {
 	return m
 }
 
+// applySearchFilter filters m.allFiles by the current searchQuery, rebuilds the tree,
+// and recomputes matchHighlights. Call this whenever allFiles or searchQuery changes.
+func (m Model) applySearchFilter() Model {
+	if m.searchQuery == "" {
+		m.files = m.allFiles
+		m.matchHighlights = nil
+	} else {
+		relPaths := make([]string, len(m.allFiles))
+		for i, f := range m.allFiles {
+			relPaths[i] = f.RelPath
+		}
+		matches := fuzzy.Find(m.searchQuery, relPaths)
+
+		m.files = make([]FileEntry, 0, len(matches))
+		m.matchHighlights = make(map[string][]int, len(matches))
+		for _, match := range matches {
+			f := m.allFiles[match.Index]
+			m.files = append(m.files, f)
+			m.matchHighlights[f.RelPath] = basenameMatchPositions(match.MatchedIndexes, f.RelPath)
+		}
+	}
+
+	repoName := filepath.Base(m.gitRoot)
+	m.treeRendered, m.lineToFileIdx, m.navItems = BuildFileTree(m.files, repoName, m.collapsedDirs)
+	if len(m.navItems) > 0 && m.cursor >= len(m.navItems) {
+		m.cursor = len(m.navItems) - 1
+	}
+	m = m.withScrollClamped()
+	return m
+}
+
+// basenameMatchPositions filters fuzzy match positions to only those within the
+// basename of relPath and returns them relative to the start of the basename.
+func basenameMatchPositions(matchedIndexes []int, relPath string) []int {
+	basename := filepath.Base(relPath)
+	basenameStart := len(relPath) - len(basename)
+	var positions []int
+	for _, idx := range matchedIndexes {
+		if idx >= basenameStart {
+			positions = append(positions, idx-basenameStart)
+		}
+	}
+	return positions
+}
+
+// highlightBasename returns the basename string with matched character positions
+// styled with styleSearchMatch.
+func highlightBasename(basename string, positions []int) string {
+	if len(positions) == 0 {
+		return basename
+	}
+	posSet := make(map[int]bool, len(positions))
+	for _, p := range positions {
+		posSet[p] = true
+	}
+	var sb strings.Builder
+	for i, ch := range basename {
+		if posSet[i] {
+			sb.WriteString(styleSearchMatch.Render(string(ch)))
+		} else {
+			sb.WriteRune(ch)
+		}
+	}
+	return sb.String()
+}
+
 // rebuildTree reconstructs the rendered tree from the current files and collapsed state.
 // Used after fold/unfold so we don't need an async refresh.
 func (m Model) rebuildTree() (tea.Model, tea.Cmd) {
@@ -144,10 +215,8 @@ func (m Model) rebuildTree() (tea.Model, tea.Cmd) {
 
 // ── Messages ─────────────────────────────────────────────────────────────────
 
-// refreshMsg signals that an async refresh should start.
 type refreshMsg struct{}
 
-// refreshResultMsg carries the completed result of an async refresh.
 type refreshResultMsg struct {
 	files         []FileEntry
 	treeRendered  string
@@ -156,13 +225,10 @@ type refreshResultMsg struct {
 	err           string
 }
 
-// errMsg carries an error from a background operation.
 type errMsg struct{ err error }
 
 // ── Async I/O ─────────────────────────────────────────────────────────────────
 
-// doRefresh runs all git/store I/O in a goroutine and returns the result as a Cmd.
-// Nothing in this function touches the model — it is pure data fetching.
 func doRefresh(wsPath, gitRoot string, collapsedDirs map[string]bool) tea.Cmd {
 	return func() tea.Msg {
 		result := refreshResultMsg{}
@@ -173,7 +239,6 @@ func doRefresh(wsPath, gitRoot string, collapsedDirs map[string]bool) tea.Cmd {
 			status = map[string]string{}
 		}
 
-		// Auto-add all git-modified files (silent, best-effort)
 		for absPath := range status {
 			_ = store.Add(wsPath, absPath)
 		}
@@ -201,10 +266,7 @@ func doRefresh(wsPath, gitRoot string, collapsedDirs map[string]bool) tea.Cmd {
 			})
 		}
 
-		repoName := filepath.Base(gitRoot)
-		result.treeRendered, result.lineToFileIdx, result.navItems =
-			BuildFileTree(result.files, repoName, collapsedDirs)
-
+		// Tree is built after filter is applied in refreshResultMsg handler.
 		return result
 	}
 }
@@ -232,14 +294,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshResultMsg:
 		m.loading = false
 		m.err = msg.err
-		m.files = msg.files
-		m.treeRendered = msg.treeRendered
-		m.lineToFileIdx = msg.lineToFileIdx
-		m.navItems = msg.navItems
-		if len(m.navItems) > 0 && m.cursor >= len(m.navItems) {
-			m.cursor = len(m.navItems) - 1
-		}
-		m = m.withScrollClamped()
+		m.allFiles = msg.files
+		m = m.applySearchFilter() // applies active query (or copies allFiles → files)
 		return m, nil
 
 	case errMsg:
@@ -247,7 +303,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Ctrl+C always quits regardless of mode
 		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
 		}
@@ -258,6 +313,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateAddInput(msg)
 		case modeDeleteConfirm:
 			return m.updateDeleteConfirm(msg)
+		case modeSearch:
+			return m.updateSearch(msg)
 		}
 	}
 	return m, nil
@@ -266,6 +323,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, keys.Quit):
+		// Esc clears active search filter before quitting
+		if msg.String() == "esc" && m.searchQuery != "" {
+			m.searchQuery = ""
+			m.input.SetValue("")
+			return m.applySearchFilter(), nil
+		}
 		return m, tea.Quit
 
 	case key.Matches(msg, keys.Up):
@@ -294,11 +357,20 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.rebuildTree()
 		}
 
+	case key.Matches(msg, keys.Search):
+		m.mode = modeSearch
+		m.input.Placeholder = "fuzzy search…"
+		m.input.SetValue(m.searchQuery) // preserve any previous query
+		m.input.CursorEnd()
+		m.input.Focus()
+		return m, textinput.Blink
+
 	case key.Matches(msg, keys.Refresh):
 		return m, func() tea.Msg { return refreshMsg{} }
 
 	case key.Matches(msg, keys.Add):
 		m.mode = modeAddInput
+		m.input.Placeholder = "path/to/file"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
@@ -338,6 +410,28 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.searchQuery = ""
+		m.input.SetValue("")
+		m.input.Blur()
+		m.mode = modeNormal
+		return m.applySearchFilter(), nil
+
+	case tea.KeyEnter:
+		m.searchQuery = m.input.Value()
+		m.input.Blur()
+		m.mode = modeNormal
+		return m.applySearchFilter(), nil
+	}
+
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	m.searchQuery = m.input.Value()
+	return m.applySearchFilter(), cmd
 }
 
 func (m Model) updateAddInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -412,29 +506,31 @@ func (m Model) View() string {
 
 	var sb strings.Builder
 
-	// Footer occupies 3 lines: prompt/error area (2) + status bar (1).
 	listHeight := m.height - 3
-	if m.mode == modeAddInput || m.mode == modeDeleteConfirm {
+	if m.mode == modeAddInput || m.mode == modeDeleteConfirm || m.mode == modeSearch {
 		listHeight -= 2
 	}
 	if listHeight < 1 {
 		listHeight = 1
 	}
 
-	if m.loading && len(m.files) == 0 {
-		// Show a simple loading indicator on first load
+	if m.loading && len(m.allFiles) == 0 {
 		sb.WriteString(styleStatusBar.Render("  Loading…") + "\n")
 		for i := 1; i < listHeight; i++ {
 			sb.WriteString("\n")
 		}
+	} else if len(m.files) == 0 && m.searchQuery != "" {
+		// No matches
+		sb.WriteString(styleDim.Render("  no matches") + "\n")
+		for i := 1; i < listHeight; i++ {
+			sb.WriteString("\n")
+		}
 	} else {
-		// Determine which rendered line is selected
 		selectedLineIdx := -1
 		if len(m.navItems) > 0 && m.cursor < len(m.navItems) {
 			selectedLineIdx = m.navItems[m.cursor].lineIdx
 		}
 
-		// Build a map from line index → dirPath for collapsed-dir indicators
 		lineToDirPath := make(map[int]string)
 		for _, item := range m.navItems {
 			if item.fileIdx < 0 && item.dirPath != "" {
@@ -442,7 +538,6 @@ func (m Model) View() string {
 			}
 		}
 
-		// Render tree lines starting from scrollOffset
 		lines := strings.Split(m.treeRendered, "\n")
 		rendered := 0
 		start := m.scrollOffset
@@ -463,6 +558,18 @@ func (m Model) View() string {
 			displayLine := "  " + line
 			if isCollapsed {
 				displayLine += " ▶"
+			}
+
+			// Apply fuzzy highlights to the filename portion
+			if fileIdx >= 0 && len(m.matchHighlights) > 0 {
+				relPath := m.files[fileIdx].RelPath
+				if positions, ok := m.matchHighlights[relPath]; ok && len(positions) > 0 {
+					basename := filepath.Base(relPath)
+					highlighted := highlightBasename(basename, positions)
+					if idx := strings.LastIndex(displayLine, basename); idx >= 0 {
+						displayLine = displayLine[:idx] + highlighted + displayLine[idx+len(basename):]
+					}
+				}
 			}
 
 			isSelected := i == selectedLineIdx
@@ -506,7 +613,6 @@ func (m Model) View() string {
 			rendered++
 		}
 
-		// Fill remaining list space
 		for rendered < listHeight {
 			sb.WriteString("\n")
 			rendered++
@@ -515,6 +621,9 @@ func (m Model) View() string {
 
 	// Prompt / error area
 	switch m.mode {
+	case modeSearch:
+		sb.WriteString(stylePrompt.Render("  Search: ") + m.input.View() + "\n")
+		sb.WriteString("\n")
 	case modeAddInput:
 		sb.WriteString(stylePrompt.Render("  Add file: ") + m.input.View() + "\n")
 		sb.WriteString("\n")
@@ -531,9 +640,16 @@ func (m Model) View() string {
 	}
 
 	// Status bar
-	hint := "  j/k move  ←/→ fold  e edit  a add  d delete  r refresh  q quit"
-	if m.loading {
+	var hint string
+	switch {
+	case m.loading:
 		hint = "  Loading…"
+	case m.mode == modeSearch:
+		hint = "  type to filter  enter confirm  esc clear"
+	case m.searchQuery != "":
+		hint = fmt.Sprintf("  %d match(es)  esc to clear  j/k move  e edit  a add  d delete  q quit", len(m.files))
+	default:
+		hint = "  j/k move  ←/→ fold  / search  e edit  a add  d delete  r refresh  q quit"
 	}
 	sb.WriteString(styleStatusBar.Render(hint))
 
