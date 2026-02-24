@@ -35,11 +35,12 @@ type FileEntry struct {
 // Model is the Bubbletea model for the TUI.
 type Model struct {
 	files         []FileEntry
-	cursor        int    // index into treeOrder
+	cursor        int    // index into navItems
 	scrollOffset  int    // first visible rendered line index
 	treeRendered  string // lipgloss/tree rendered output (plain text)
 	lineToFileIdx []int  // lineToFileIdx[i] = fileIdx for line i, or -1
-	treeOrder     []int  // fileIdx values in top-to-bottom visual order
+	navItems      []navItem
+	collapsedDirs map[string]bool // set of dir paths (no trailing slash) that are collapsed
 	wsPath        string
 	gitRoot       string
 	cfg           *config.Config
@@ -59,19 +60,30 @@ func New(wsPath, gitRoot string, cfg *config.Config) Model {
 	ti.CharLimit = 512
 
 	return Model{
-		wsPath:  wsPath,
-		gitRoot: gitRoot,
-		cfg:     cfg,
-		input:   ti,
+		wsPath:        wsPath,
+		gitRoot:       gitRoot,
+		cfg:           cfg,
+		input:         ti,
+		collapsedDirs: make(map[string]bool),
 	}
 }
 
-// selectedEntry returns the FileEntry currently under the cursor, or nil if none.
-func (m Model) selectedEntry() *FileEntry {
-	if len(m.treeOrder) == 0 || m.cursor >= len(m.treeOrder) {
+// selectedNavItem returns the navItem currently under the cursor, or nil if none.
+func (m Model) selectedNavItem() *navItem {
+	if len(m.navItems) == 0 || m.cursor >= len(m.navItems) {
 		return nil
 	}
-	return &m.files[m.treeOrder[m.cursor]]
+	item := m.navItems[m.cursor]
+	return &item
+}
+
+// selectedEntry returns the FileEntry currently under the cursor, or nil if none/on a dir.
+func (m Model) selectedEntry() *FileEntry {
+	item := m.selectedNavItem()
+	if item == nil || item.fileIdx < 0 {
+		return nil
+	}
+	return &m.files[item.fileIdx]
 }
 
 // listHeight returns how many tree lines fit in the current terminal.
@@ -86,18 +98,12 @@ func (m Model) listHeight() int {
 	return h
 }
 
-// lineForCursor returns the rendered line index for the currently selected file.
+// lineForCursor returns the rendered line index for the currently selected item.
 func (m Model) lineForCursor() int {
-	if len(m.treeOrder) == 0 || m.cursor >= len(m.treeOrder) {
+	if len(m.navItems) == 0 || m.cursor >= len(m.navItems) {
 		return 0
 	}
-	target := m.treeOrder[m.cursor]
-	for i, idx := range m.lineToFileIdx {
-		if idx == target {
-			return i
-		}
-	}
-	return 0
+	return m.navItems[m.cursor].lineIdx
 }
 
 // withScrollClamped adjusts scrollOffset so the selected line stays visible.
@@ -124,6 +130,18 @@ func (m Model) withScrollClamped() Model {
 	return m
 }
 
+// rebuildTree reconstructs the rendered tree from the current files and collapsed state.
+// Used after fold/unfold so we don't need an async refresh.
+func (m Model) rebuildTree() (tea.Model, tea.Cmd) {
+	repoName := filepath.Base(m.gitRoot)
+	m.treeRendered, m.lineToFileIdx, m.navItems = BuildFileTree(m.files, repoName, m.collapsedDirs)
+	if len(m.navItems) > 0 && m.cursor >= len(m.navItems) {
+		m.cursor = len(m.navItems) - 1
+	}
+	m = m.withScrollClamped()
+	return m, nil
+}
+
 // ── Messages ─────────────────────────────────────────────────────────────────
 
 // refreshMsg signals that an async refresh should start.
@@ -134,7 +152,7 @@ type refreshResultMsg struct {
 	files         []FileEntry
 	treeRendered  string
 	lineToFileIdx []int
-	treeOrder     []int
+	navItems      []navItem
 	err           string
 }
 
@@ -145,7 +163,7 @@ type errMsg struct{ err error }
 
 // doRefresh runs all git/store I/O in a goroutine and returns the result as a Cmd.
 // Nothing in this function touches the model — it is pure data fetching.
-func doRefresh(wsPath, gitRoot string) tea.Cmd {
+func doRefresh(wsPath, gitRoot string, collapsedDirs map[string]bool) tea.Cmd {
 	return func() tea.Msg {
 		result := refreshResultMsg{}
 
@@ -184,8 +202,8 @@ func doRefresh(wsPath, gitRoot string) tea.Cmd {
 		}
 
 		repoName := filepath.Base(gitRoot)
-		result.treeRendered, result.lineToFileIdx, result.treeOrder =
-			BuildFileTree(result.files, repoName)
+		result.treeRendered, result.lineToFileIdx, result.navItems =
+			BuildFileTree(result.files, repoName, collapsedDirs)
 
 		return result
 	}
@@ -195,7 +213,7 @@ func doRefresh(wsPath, gitRoot string) tea.Cmd {
 
 func (m Model) Init() tea.Cmd {
 	m.loading = true
-	return doRefresh(m.wsPath, m.gitRoot)
+	return doRefresh(m.wsPath, m.gitRoot, m.collapsedDirs)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -209,7 +227,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshMsg:
 		m.loading = true
 		m.err = ""
-		return m, doRefresh(m.wsPath, m.gitRoot)
+		return m, doRefresh(m.wsPath, m.gitRoot, m.collapsedDirs)
 
 	case refreshResultMsg:
 		m.loading = false
@@ -217,9 +235,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.files = msg.files
 		m.treeRendered = msg.treeRendered
 		m.lineToFileIdx = msg.lineToFileIdx
-		m.treeOrder = msg.treeOrder
-		if m.cursor >= len(m.treeOrder) && m.cursor > 0 {
-			m.cursor = len(m.treeOrder) - 1
+		m.navItems = msg.navItems
+		if len(m.navItems) > 0 && m.cursor >= len(m.navItems) {
+			m.cursor = len(m.navItems) - 1
 		}
 		m = m.withScrollClamped()
 		return m, nil
@@ -251,15 +269,29 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, keys.Up):
-		if len(m.treeOrder) > 0 {
-			m.cursor = (m.cursor - 1 + len(m.treeOrder)) % len(m.treeOrder)
+		if len(m.navItems) > 0 {
+			m.cursor = (m.cursor - 1 + len(m.navItems)) % len(m.navItems)
 			m = m.withScrollClamped()
 		}
 
 	case key.Matches(msg, keys.Down):
-		if len(m.treeOrder) > 0 {
-			m.cursor = (m.cursor + 1) % len(m.treeOrder)
+		if len(m.navItems) > 0 {
+			m.cursor = (m.cursor + 1) % len(m.navItems)
 			m = m.withScrollClamped()
+		}
+
+	case key.Matches(msg, keys.Right):
+		item := m.selectedNavItem()
+		if item != nil && item.fileIdx < 0 && item.dirPath != "" && m.collapsedDirs[item.dirPath] {
+			delete(m.collapsedDirs, item.dirPath)
+			return m.rebuildTree()
+		}
+
+	case key.Matches(msg, keys.Left):
+		item := m.selectedNavItem()
+		if item != nil && item.fileIdx < 0 && item.dirPath != "" && !m.collapsedDirs[item.dirPath] {
+			m.collapsedDirs[item.dirPath] = true
+			return m.rebuildTree()
 		}
 
 	case key.Matches(msg, keys.Refresh):
@@ -396,10 +428,18 @@ func (m Model) View() string {
 			sb.WriteString("\n")
 		}
 	} else {
-		// Determine which file is selected
-		selectedFileIdx := -1
-		if len(m.treeOrder) > 0 && m.cursor < len(m.treeOrder) {
-			selectedFileIdx = m.treeOrder[m.cursor]
+		// Determine which rendered line is selected
+		selectedLineIdx := -1
+		if len(m.navItems) > 0 && m.cursor < len(m.navItems) {
+			selectedLineIdx = m.navItems[m.cursor].lineIdx
+		}
+
+		// Build a map from line index → dirPath for collapsed-dir indicators
+		lineToDirPath := make(map[int]string)
+		for _, item := range m.navItems {
+			if item.fileIdx < 0 && item.dirPath != "" {
+				lineToDirPath[item.lineIdx] = item.dirPath
+			}
 		}
 
 		// Render tree lines starting from scrollOffset
@@ -417,8 +457,15 @@ func (m Model) View() string {
 				fileIdx = m.lineToFileIdx[i]
 			}
 
+			dirPath := lineToDirPath[i]
+			isCollapsed := dirPath != "" && m.collapsedDirs[dirPath]
+
 			displayLine := "  " + line
-			isSelected := fileIdx >= 0 && fileIdx == selectedFileIdx
+			if isCollapsed {
+				displayLine += " ▶"
+			}
+
+			isSelected := i == selectedLineIdx
 
 			var entry *FileEntry
 			if fileIdx >= 0 {
@@ -484,7 +531,7 @@ func (m Model) View() string {
 	}
 
 	// Status bar
-	hint := "  j/k move  e edit  a add  d delete  r refresh  q quit"
+	hint := "  j/k move  ←/→ fold  e edit  a add  d delete  r refresh  q quit"
 	if m.loading {
 		hint = "  Loading…"
 	}

@@ -8,6 +8,13 @@ import (
 	lipglosstree "github.com/charmbracelet/lipgloss/tree"
 )
 
+// navItem represents a navigable item in the tree (file or directory header).
+type navItem struct {
+	fileIdx int    // >= 0 for files, -1 for directory headers
+	dirPath string // non-empty for directory headers (path relative to repo root, no trailing slash)
+	lineIdx int    // index into the rendered lines
+}
+
 // pathNode is an internal node for building a sorted path hierarchy before
 // converting to lipgloss/tree for rendering. Leaf nodes are files (isDir=false);
 // internal nodes are directories (isDir=true, fileIdx=-1).
@@ -88,45 +95,55 @@ func tryCollapse(node *pathNode) (name string, fileIdx int, ok bool) {
 // for all box-drawing rendering (├──, └──, │). Returns:
 //   - rendered: plain-text rendered tree output (no ANSI codes)
 //   - lineToFileIdx: maps each rendered line index → fileIdx (-1 for dir/root rows)
-//   - treeOrder: file indices in top-to-bottom visual order (used for cursor navigation)
-func BuildFileTree(files []FileEntry, repoName string) (rendered string, lineToFileIdx []int, treeOrder []int) {
+//   - navItems: navigable items (files and directory headers) in top-to-bottom visual order
+func BuildFileTree(files []FileEntry, repoName string, collapsedDirs map[string]bool) (rendered string, lineToFileIdx []int, navItems []navItem) {
 	root := buildPathTree(files)
 
 	// Line 0 is the root header (repoName/)
 	lineToFileIdx = append(lineToFileIdx, -1)
 
 	t := lipglosstree.Root(repoName + "/")
-	populateLipglossTree(t, root, &lineToFileIdx)
+	populateLipglossTree(t, root, &lineToFileIdx, &navItems, collapsedDirs, "")
 
 	rendered = t.String()
-
-	for _, idx := range lineToFileIdx {
-		if idx >= 0 {
-			treeOrder = append(treeOrder, idx)
-		}
-	}
 	return
 }
 
 // populateLipglossTree recursively adds children to the lipgloss/tree node,
 // recording the line index → fileIdx mapping in lockstep with the DFS traversal.
-func populateLipglossTree(t *lipglosstree.Tree, node *pathNode, lineToFileIdx *[]int) {
+func populateLipglossTree(t *lipglosstree.Tree, node *pathNode, lineToFileIdx *[]int, navItems *[]navItem, collapsedDirs map[string]bool, pathPrefix string) {
 	for _, child := range node.children {
 		if child.isDir {
+			fullPath := child.name
+			if pathPrefix != "" {
+				fullPath = pathPrefix + "/" + child.name
+			}
 			if collName, fileIdx, ok := tryCollapse(child); ok {
 				// Collapsed single-child chain: one leaf line ("dir/file")
+				lineIdx := len(*lineToFileIdx)
 				t.Child(child.name + "/" + collName)
 				*lineToFileIdx = append(*lineToFileIdx, fileIdx)
+				*navItems = append(*navItems, navItem{fileIdx: fileIdx, lineIdx: lineIdx})
+			} else if collapsedDirs[fullPath] {
+				// User-collapsed directory: show header as leaf, no children rendered
+				lineIdx := len(*lineToFileIdx)
+				t.Child(child.name + "/")
+				*lineToFileIdx = append(*lineToFileIdx, -1)
+				*navItems = append(*navItems, navItem{fileIdx: -1, dirPath: fullPath, lineIdx: lineIdx})
 			} else {
 				// Expanded directory: subtree (dir header + children)
-				subT := lipglosstree.Root(child.name + "/")
+				lineIdx := len(*lineToFileIdx)
 				*lineToFileIdx = append(*lineToFileIdx, -1) // dir header
-				populateLipglossTree(subT, child, lineToFileIdx)
+				*navItems = append(*navItems, navItem{fileIdx: -1, dirPath: fullPath, lineIdx: lineIdx})
+				subT := lipglosstree.Root(child.name + "/")
+				populateLipglossTree(subT, child, lineToFileIdx, navItems, collapsedDirs, fullPath)
 				t.Child(subT)
 			}
 		} else {
+			lineIdx := len(*lineToFileIdx)
 			t.Child(child.name)
 			*lineToFileIdx = append(*lineToFileIdx, child.fileIdx)
+			*navItems = append(*navItems, navItem{fileIdx: child.fileIdx, lineIdx: lineIdx})
 		}
 	}
 }

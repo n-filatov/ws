@@ -1,2 +1,14 @@
-.workingset-*
+# Build output
 ws
+
+# Working set store files
+.workingset-*
+
+# Claude Code local settings
+.claude/
+
+# Go test binaries
+*.test
+
+# macOS
+.DS_Store
