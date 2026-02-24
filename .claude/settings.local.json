@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod init github.com/nfilatov/ws)",
+      "Bash(/opt/homebrew/bin/go get github.com/charmbracelet/bubbletea@latest github.com/charmbracelet/bubbles@latest github.com/charmbracelet/lipgloss@latest)"
+    ]
+  }
+}
