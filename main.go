@@ -83,6 +83,10 @@ func runTUI() {
 	if err != nil {
 		fatalf("error: %v\n", err)
 	}
+
+	store.MigrateIfNeeded(root, branch)
+	store.WriteRepoPath(root)
+
 	wsPath := store.WorkingSetPath(root, branch)
 
 	cfg, err := config.Load()
@@ -90,7 +94,12 @@ func runTUI() {
 		fatalf("error loading config: %v\n", err)
 	}
 
-	m := tui.New(wsPath, root, cfg)
+	var stale []store.StaleCandidate
+	if cfg.CleanupDays > 0 {
+		stale = store.StaleCandidates(root, branch, cfg.CleanupDays)
+	}
+
+	m := tui.New(wsPath, root, cfg, stale)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fatalf("error: %v\n", err)
@@ -106,6 +115,8 @@ func workingSetPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	store.MigrateIfNeeded(root, branch)
+	store.WriteRepoPath(root)
 	return store.WorkingSetPath(root, branch), nil
 }
 

@@ -4,19 +4,22 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 // Config holds user configuration from ~/.wsconfig.
 type Config struct {
-	Editor string
+	Editor      string
+	CleanupDays int // days of inactivity before a working set is offered for cleanup; 0 = disabled
 }
 
 // Load reads ~/.wsconfig and returns a Config.
 // Missing file is not an error — defaults are used.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Editor: "vim",
+		Editor:      "vim",
+		CleanupDays: 7,
 	}
 
 	home, err := os.UserHomeDir()
@@ -49,6 +52,10 @@ func Load() (*Config, error) {
 		switch key {
 		case "editor":
 			cfg.Editor = val
+		case "cleanup_days":
+			if n, err := strconv.Atoi(val); err == nil {
+				cfg.CleanupDays = n
+			}
 		}
 	}
 

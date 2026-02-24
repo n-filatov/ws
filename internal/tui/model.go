@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -24,7 +25,16 @@ const (
 	modeAddInput
 	modeDeleteConfirm
 	modeSearch
+	modeCleanupPrompt
 )
+
+// cleanupCandidate is a stale working set file the user can choose to delete.
+type cleanupCandidate struct {
+	branch   string
+	wsPath   string
+	lastUsed time.Time
+	selected bool
+}
 
 // FileEntry represents a file in the working set.
 type FileEntry struct {
@@ -36,41 +46,60 @@ type FileEntry struct {
 
 // Model is the Bubbletea model for the TUI.
 type Model struct {
-	allFiles       []FileEntry // all files from last refresh (source of truth)
-	files          []FileEntry // currently displayed files (filtered or all)
-	cursor         int         // index into navItems
-	scrollOffset   int         // first visible rendered line index
-	treeRendered   string      // lipgloss/tree rendered output (plain text)
-	lineToFileIdx  []int       // lineToFileIdx[i] = fileIdx for line i, or -1
-	navItems       []navItem
-	collapsedDirs  map[string]bool // set of dir paths (no trailing slash) that are collapsed
-	searchQuery    string          // active filter; "" means no filter
+	allFiles        []FileEntry // all files from last refresh (source of truth)
+	files           []FileEntry // currently displayed files (filtered or all)
+	cursor          int         // index into navItems
+	scrollOffset    int         // first visible rendered line index
+	treeRendered    string      // lipgloss/tree rendered output (plain text)
+	lineToFileIdx   []int       // lineToFileIdx[i] = fileIdx for line i, or -1
+	navItems        []navItem
+	collapsedDirs   map[string]bool  // set of dir paths (no trailing slash) that are collapsed
+	searchQuery     string           // active filter; "" means no filter
 	matchHighlights map[string][]int // RelPath → matched char positions in basename
-	wsPath         string
-	gitRoot        string
-	cfg            *config.Config
-	mode           mode
-	input          textinput.Model
-	confirmMsg     string
-	loading        bool
-	width          int
-	height         int
-	err            string
+	cleanupList     []cleanupCandidate
+	cleanupCursor   int
+	wsPath          string
+	gitRoot         string
+	cfg             *config.Config
+	mode            mode
+	input           textinput.Model
+	confirmMsg      string
+	loading         bool
+	width           int
+	height          int
+	err             string
 }
 
 // New creates a new Model. Call Init() to start.
-func New(wsPath, gitRoot string, cfg *config.Config) Model {
+// stale is the list of working set files to offer for cleanup on startup;
+// pass nil or empty slice when there is nothing to clean up.
+func New(wsPath, gitRoot string, cfg *config.Config, stale []store.StaleCandidate) Model {
 	ti := textinput.New()
 	ti.Placeholder = "path/to/file"
 	ti.CharLimit = 512
 
-	return Model{
+	m := Model{
 		wsPath:        wsPath,
 		gitRoot:       gitRoot,
 		cfg:           cfg,
 		input:         ti,
 		collapsedDirs: make(map[string]bool),
 	}
+
+	if len(stale) > 0 {
+		m.mode = modeCleanupPrompt
+		m.cleanupList = make([]cleanupCandidate, len(stale))
+		for i, s := range stale {
+			m.cleanupList[i] = cleanupCandidate{
+				branch:   s.Branch,
+				wsPath:   s.WsPath,
+				lastUsed: s.LastUsed,
+				selected: true,
+			}
+		}
+	}
+
+	return m
 }
 
 // selectedNavItem returns the navItem currently under the cursor, or nil if none.
@@ -315,6 +344,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateDeleteConfirm(msg)
 		case modeSearch:
 			return m.updateSearch(msg)
+		case modeCleanupPrompt:
+			return m.updateCleanupPrompt(msg)
+		}
+	}
+	return m, nil
+}
+
+func (m Model) updateCleanupPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case msg.Type == tea.KeyEsc || msg.String() == "n" || msg.String() == "N":
+		m.mode = modeNormal
+
+	case msg.Type == tea.KeyEnter || msg.String() == "y" || msg.String() == "Y":
+		for _, c := range m.cleanupList {
+			if c.selected {
+				_ = os.Remove(c.wsPath)
+			}
+		}
+		m.mode = modeNormal
+
+	case msg.Type == tea.KeyUp || msg.String() == "k":
+		if m.cleanupCursor > 0 {
+			m.cleanupCursor--
+		}
+
+	case msg.Type == tea.KeyDown || msg.String() == "j":
+		if m.cleanupCursor < len(m.cleanupList)-1 {
+			m.cleanupCursor++
+		}
+
+	case msg.Type == tea.KeySpace:
+		if m.cleanupCursor < len(m.cleanupList) {
+			m.cleanupList[m.cleanupCursor].selected = !m.cleanupList[m.cleanupCursor].selected
 		}
 	}
 	return m, nil
@@ -499,6 +561,36 @@ func (m Model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // ── View ─────────────────────────────────────────────────────────────────────
 
+func (m Model) viewCleanupPrompt() string {
+	if m.width == 0 {
+		return ""
+	}
+	var sb strings.Builder
+
+	days := m.cfg.CleanupDays
+	sb.WriteString(fmt.Sprintf("\n  Stale working sets (not used in %d+ days)\n\n", days))
+
+	for i, c := range m.cleanupList {
+		checkbox := "[ ]"
+		if c.selected {
+			checkbox = "[x]"
+		}
+		daysAgo := int(time.Since(c.lastUsed).Hours() / 24)
+		line := fmt.Sprintf("  %s %-40s last used %d days ago", checkbox, c.branch, daysAgo)
+		if i == m.cleanupCursor {
+			padded := line + strings.Repeat(" ", max(0, m.width-lipgloss.Width(line)))
+			sb.WriteString(styleSelected.Render(padded))
+		} else {
+			sb.WriteString(line)
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(styleStatusBar.Render("  j/k move  space toggle  enter clean up  esc skip"))
+	return sb.String()
+}
+
 func (m Model) View() string {
 	if m.width == 0 {
 		return ""
@@ -512,6 +604,10 @@ func (m Model) View() string {
 	}
 	if listHeight < 1 {
 		listHeight = 1
+	}
+
+	if m.mode == modeCleanupPrompt {
+		return m.viewCleanupPrompt()
 	}
 
 	if m.loading && len(m.allFiles) == 0 {
