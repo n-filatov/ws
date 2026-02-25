@@ -30,12 +30,18 @@ ws
 
 This is what `ws` was built for.
 
-**1. Ask Claude Code to map out a feature**
+**1. Install the plugin, then map a feature**
 
 ```
-What files are involved in the user authentication flow?
-For each file, run: ws add <filepath>
+/plugin marketplace add n-filatov/ws
+/plugin install ws@n-filatov-ws
 ```
+
+```
+/ws:map user authentication flow
+```
+
+Claude searches the codebase, identifies relevant files, and runs `ws add` for each one automatically.
 
 **2. Open `ws` in a split terminal**
 
@@ -181,58 +187,35 @@ Each branch gets its own file: `.workingset-<branch-name>`. No conflicts, no `.g
 
 ## Integrations
 
-### Claude Code Plugin
+### Claude Code
 
-Install the `ws` plugin and use `/ws:map` — describe a feature, Claude finds the files and adds them for you.
-
-```
-/ws:map user authentication flow
-/ws:map payment processing
-```
-
-Claude searches the codebase, identifies relevant files, and runs `ws add` for each one. Then open `ws` to navigate.
-
-**Install:**
+Install the plugin for the smoothest experience:
 
 ```
 /plugin marketplace add n-filatov/ws
 /plugin install ws@n-filatov-ws
 ```
 
-**No plugin? Copy the skill directly:**
+| Command | What it does |
+|---------|-------------|
+| `/ws:map <feature>` | Find relevant files and add them to your working set |
+| `/ws:install` | Install the `ws` CLI (detects OS, picks Homebrew / APT / source) |
 
-```bash
-mkdir -p ~/.claude/skills/ws-map
-curl -fsSL https://raw.githubusercontent.com/n-filatov/ws/main/plugin/skills/map/SKILL.md \
-  -o ~/.claude/skills/ws-map/SKILL.md
-```
-
-Then use `/ws-map <feature>` in Claude Code.
-
-### Claude Code (manual)
-
-Prompt Claude to identify relevant files and pipe them directly into `ws`:
+**No plugin?** Prompt Claude manually:
 
 ```
 Find all files related to the payment processing feature.
 For each file you find, run: ws add <filepath>
 ```
 
-Then open `ws` to navigate them. Press `r` to pick up any files Claude adds while you're working.
-
 ### Scripts and pipelines
 
 `ws list` outputs one path per line — compose it with anything:
 
 ```bash
-# open all files in your working set in vim
-vim $(ws list)
-
-# grep across your working set only
-ws list | xargs grep "TODO"
-
-# count lines across working set files
-ws list | xargs wc -l
+vim $(ws list)              # open all files in vim
+ws list | xargs grep "TODO" # grep across working set only
+ws list | xargs wc -l       # count lines
 ```
 
 ---
