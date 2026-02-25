@@ -12,9 +12,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/nfilatov/ws/internal/config"
-	"github.com/nfilatov/ws/internal/git"
-	"github.com/nfilatov/ws/internal/store"
+	"github.com/n-filatov/ws/internal/config"
+	"github.com/n-filatov/ws/internal/git"
+	"github.com/n-filatov/ws/internal/store"
 	"github.com/sahilm/fuzzy"
 )
 

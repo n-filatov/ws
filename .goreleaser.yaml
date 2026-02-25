@@ -1,0 +1,62 @@
+version: 2
+
+project_name: ws
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - name: ws
+    repository:
+      owner: n-filatov
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_message_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://github.com/n-filatov/ws"
+    description: "A terminal UI for managing your working set of files"
+    license: "MIT"
+    install: |
+      bin.install "ws"
+    test: |
+      system "#{bin}/ws", "version"
+
+nfpms:
+  - id: packages
+    package_name: ws
+    homepage: https://github.com/n-filatov/ws
+    description: A terminal UI for managing your working set of files
+    license: MIT
+    maintainer: Nikita Filatov <nfilatov@users.noreply.github.com>
+    formats:
+      - deb

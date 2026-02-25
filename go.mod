@@ -1,4 +1,4 @@
-module github.com/nfilatov/ws
+module github.com/n-filatov/ws
 
 go 1.25.0
 

@@ -97,7 +97,7 @@ On startup and refresh, `ws` automatically pulls in any files git knows are modi
 ### From source
 
 ```bash
-git clone https://github.com/nfilatov/ws
+git clone https://github.com/n-filatov/ws
 cd ws
 make install
 ```

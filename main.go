@@ -5,11 +5,13 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/nfilatov/ws/internal/config"
-	"github.com/nfilatov/ws/internal/git"
-	"github.com/nfilatov/ws/internal/store"
-	"github.com/nfilatov/ws/internal/tui"
+	"github.com/n-filatov/ws/internal/config"
+	"github.com/n-filatov/ws/internal/git"
+	"github.com/n-filatov/ws/internal/store"
+	"github.com/n-filatov/ws/internal/tui"
 )
+
+var version = "dev"
 
 func main() {
 	args := os.Args[1:]
@@ -20,6 +22,9 @@ func main() {
 	}
 
 	switch args[0] {
+	case "version":
+		fmt.Println("ws " + version)
+
 	case "add":
 		if len(args) < 2 {
 			fatalf("usage: ws add <file> [file...]\n")
@@ -70,7 +75,7 @@ func main() {
 		fmt.Println("working set cleared")
 
 	default:
-		fatalf("unknown command %q\n\nUsage:\n  ws                    open TUI\n  ws add <file>...      add files\n  ws rm <file>          remove a file\n  ws list               list tracked files\n  ws clear              clear working set\n", args[0])
+		fatalf("unknown command %q\n\nUsage:\n  ws                    open TUI\n  ws add <file>...      add files\n  ws rm <file>          remove a file\n  ws list               list tracked files\n  ws clear              clear working set\n  ws version            print version\n", args[0])
 	}
 }
 
