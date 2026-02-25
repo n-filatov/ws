@@ -42,7 +42,7 @@ brews:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    commit_message_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     homepage: "https://github.com/n-filatov/ws"
     description: "A terminal UI for managing your working set of files"
     license: "MIT"
