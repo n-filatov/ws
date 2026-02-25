@@ -94,6 +94,25 @@ On startup and refresh, `ws` automatically pulls in any files git knows are modi
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap n-filatov/tap
+brew install ws
+```
+
+### APT (Debian / Ubuntu)
+
+```bash
+curl -fsSL https://n-filatov.github.io/ws/gpg.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/ws.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/ws.gpg] https://n-filatov.github.io/ws ./" \
+  | sudo tee /etc/apt/sources.list.d/ws.list
+
+sudo apt update && sudo apt install ws
+```
+
 ### From source
 
 ```bash
@@ -103,13 +122,6 @@ make install
 ```
 
 This builds the binary and installs it to `~/.local/bin/ws`. Make sure `~/.local/bin` is in your `PATH`.
-
-### Build only
-
-```bash
-make build
-# outputs ./ws
-```
 
 **Requirements:** Go 1.21+
 
