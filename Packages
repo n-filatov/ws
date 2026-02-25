@@ -1,0 +1,31 @@
+Package: ws
+Version: 0.1.0
+Architecture: amd64
+Maintainer: Nikita Filatov <nfilatov@users.noreply.github.com>
+Installed-Size: 3292
+Filename: ./ws_0.1.0_linux_amd64.deb
+Size: 1371648
+MD5sum: 2b4ce79f49421ae4390f7024483ce1ee
+SHA1: dfe86f715ce244b45ca7bde616b1c6e18ed00317
+SHA256: e3de316c5b3b468d4ce5a1d4a0c1d2a0a97429b2667653b1ffe4c90ae394fe97
+Priority: optional
+Homepage: https://github.com/n-filatov/ws
+Description: A terminal UI for managing your working set of files
+Architecture-Variant: amd64v1
+License: MIT
+
+Package: ws
+Version: 0.1.0
+Architecture: arm64
+Maintainer: Nikita Filatov <nfilatov@users.noreply.github.com>
+Installed-Size: 3264
+Filename: ./ws_0.1.0_linux_arm64.deb
+Size: 1266646
+MD5sum: c65c96b2cd27669b245be679c9e97151
+SHA1: a8652826f204568a499e83b5957338c7f91d909e
+SHA256: ea12d1f63cdbade3687216f6b5682c93fb7443c17ab61b9ae5f9b8dccc009bf9
+Priority: optional
+Homepage: https://github.com/n-filatov/ws
+Description: A terminal UI for managing your working set of files
+License: MIT
+

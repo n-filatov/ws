@@ -1,0 +1,10 @@
+Origin: ws
+Label: ws
+Suite: stable
+Codename: stable
+Architectures: amd64 arm64
+Components: main
+Date: Wed, 25 Feb 2026 09:55:21 +0000
+SHA256:
+ e13590fbd4413a5a9e4ff1828e130897b57a8b1a1cc46020ecf6cf2bb5ed5c44 998 Packages
+ 97d42be0d8a0bd725da7ad183d26111cc082c7af43877ff43d7c28119853d121 522 Packages.gz
