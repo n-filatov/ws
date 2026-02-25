@@ -34,6 +34,7 @@ func WorkingSetPath(root, branch string) string {
 
 // WriteRepoPath records the repo root in the ws data dir so future gc can
 // detect orphaned entries. Safe to call on every startup.
+// Errors are intentionally ignored — this is best-effort bookkeeping.
 func WriteRepoPath(root string) {
 	dir := filepath.Join(dataHome(), "ws", repoSlug(root))
 	_ = os.MkdirAll(dir, 0o755)
@@ -42,6 +43,8 @@ func WriteRepoPath(root string) {
 
 // MigrateIfNeeded moves a legacy .workingset-<branch> file from the repo root
 // to the new data directory location. Silent no-op if nothing to migrate.
+// Migration errors are intentionally ignored — a failure leaves the old file
+// in place and the user starts with a fresh working set at the new location.
 func MigrateIfNeeded(root, branch string) {
 	newPath := WorkingSetPath(root, branch)
 	if _, err := os.Stat(newPath); err == nil {

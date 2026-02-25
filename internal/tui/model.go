@@ -269,7 +269,7 @@ func doRefresh(wsPath, gitRoot string, collapsedDirs map[string]bool) tea.Cmd {
 		}
 
 		for absPath := range status {
-			_ = store.Add(wsPath, absPath)
+			_ = store.Add(wsPath, absPath) // best-effort: auto-track modified files; errors are non-critical
 		}
 
 		paths, err := store.Load(wsPath)
@@ -359,7 +359,7 @@ func (m Model) updateCleanupPrompt(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case msg.Type == tea.KeyEnter || msg.String() == "y" || msg.String() == "Y":
 		for _, c := range m.cleanupList {
 			if c.selected {
-				_ = os.Remove(c.wsPath)
+				_ = os.Remove(c.wsPath) // best-effort cleanup; reappears next session if removal fails
 			}
 		}
 		m.mode = modeNormal

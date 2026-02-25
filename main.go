@@ -29,11 +29,11 @@ func main() {
 		if len(args) < 2 {
 			fatalf("usage: ws add <file> [file...]\n")
 		}
-		wsPath, err := workingSetPath()
+		ws, err := initWorkspace()
 		if err != nil {
 			fatalf("error: %v\n", err)
 		}
-		if err := store.Add(wsPath, args[1:]...); err != nil {
+		if err := store.Add(ws.wsPath, args[1:]...); err != nil {
 			fatalf("error: %v\n", err)
 		}
 		fmt.Printf("added %d file(s)\n", len(args)-1)
@@ -42,21 +42,21 @@ func main() {
 		if len(args) < 2 {
 			fatalf("usage: ws rm <file>\n")
 		}
-		wsPath, err := workingSetPath()
+		ws, err := initWorkspace()
 		if err != nil {
 			fatalf("error: %v\n", err)
 		}
-		if err := store.Remove(wsPath, args[1]); err != nil {
+		if err := store.Remove(ws.wsPath, args[1]); err != nil {
 			fatalf("error: %v\n", err)
 		}
 		fmt.Printf("removed %s\n", args[1])
 
 	case "list":
-		wsPath, err := workingSetPath()
+		ws, err := initWorkspace()
 		if err != nil {
 			fatalf("error: %v\n", err)
 		}
-		files, err := store.Load(wsPath)
+		files, err := store.Load(ws.wsPath)
 		if err != nil {
 			fatalf("error: %v\n", err)
 		}
@@ -65,11 +65,11 @@ func main() {
 		}
 
 	case "clear":
-		wsPath, err := workingSetPath()
+		ws, err := initWorkspace()
 		if err != nil {
 			fatalf("error: %v\n", err)
 		}
-		if err := store.Save(wsPath, []string{}); err != nil {
+		if err := store.Save(ws.wsPath, []string{}); err != nil {
 			fatalf("error: %v\n", err)
 		}
 		fmt.Println("working set cleared")
@@ -79,20 +79,38 @@ func main() {
 	}
 }
 
-func runTUI() {
+// workspace holds the resolved git context for the current invocation.
+type workspace struct {
+	root   string
+	branch string
+	wsPath string
+}
+
+// initWorkspace resolves the git root and branch, runs any pending migrations,
+// records the repo path for future gc, and returns the resolved context.
+func initWorkspace() (workspace, error) {
 	root, err := git.RootDir()
 	if err != nil {
-		fatalf("error: %v\n", err)
+		return workspace{}, err
 	}
 	branch, err := git.CurrentBranch()
 	if err != nil {
-		fatalf("error: %v\n", err)
+		return workspace{}, err
 	}
-
 	store.MigrateIfNeeded(root, branch)
 	store.WriteRepoPath(root)
+	return workspace{
+		root:   root,
+		branch: branch,
+		wsPath: store.WorkingSetPath(root, branch),
+	}, nil
+}
 
-	wsPath := store.WorkingSetPath(root, branch)
+func runTUI() {
+	ws, err := initWorkspace()
+	if err != nil {
+		fatalf("error: %v\n", err)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -101,28 +119,14 @@ func runTUI() {
 
 	var stale []store.StaleCandidate
 	if cfg.CleanupDays > 0 {
-		stale = store.StaleCandidates(root, branch, cfg.CleanupDays)
+		stale = store.StaleCandidates(ws.root, ws.branch, cfg.CleanupDays)
 	}
 
-	m := tui.New(wsPath, root, cfg, stale)
+	m := tui.New(ws.wsPath, ws.root, cfg, stale)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fatalf("error: %v\n", err)
 	}
-}
-
-func workingSetPath() (string, error) {
-	root, err := git.RootDir()
-	if err != nil {
-		return "", err
-	}
-	branch, err := git.CurrentBranch()
-	if err != nil {
-		return "", err
-	}
-	store.MigrateIfNeeded(root, branch)
-	store.WriteRepoPath(root)
-	return store.WorkingSetPath(root, branch), nil
 }
 
 func fatalf(format string, args ...any) {

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -53,7 +54,11 @@ func Load() (*Config, error) {
 		case "editor":
 			cfg.Editor = val
 		case "cleanup_days":
-			if n, err := strconv.Atoi(val); err == nil {
+			if n, err := strconv.Atoi(val); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: invalid cleanup_days value %q, using default (%d)\n", val, cfg.CleanupDays)
+			} else if n < 0 {
+				fmt.Fprintf(os.Stderr, "warning: cleanup_days must be >= 0, ignoring value %d\n", n)
+			} else {
 				cfg.CleanupDays = n
 			}
 		}
