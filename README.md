@@ -21,7 +21,7 @@ When building a feature, you jump between the same 6 files constantly — but yo
 ws add src/auth/login.go src/middleware/jwt.go
 ws
 ```
-<img width="960" height="488" alt="image" src="https://github.com/user-attachments/assets/8e565c8e-414b-44a9-99db-b48a803be713" />
+<video width="960" height="488" alt="image" src="https://github.com/user-attachments/assets/8e565c8e-414b-44a9-99db-b48a803be713" />
 
 ---
 
