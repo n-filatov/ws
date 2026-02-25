@@ -3,6 +3,11 @@ name: Update APT Repository
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build APT repo for (e.g. v0.1.0)"
+        required: true
 
 permissions:
   contents: write
@@ -46,7 +51,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "${{ github.event.release.tag_name }}" \
+          gh release download "${{ github.event.release.tag_name || github.event.inputs.tag }}" \
             --pattern "*.deb" \
             --dir apt-repo/
 
@@ -92,5 +97,5 @@ jobs:
           cd apt-repo
           git add .
           git diff --staged --quiet && echo "Nothing to commit" && exit 0
-          git commit -m "APT repo update for ${{ github.event.release.tag_name }}"
+          git commit -m "APT repo update for ${{ github.event.release.tag_name || github.event.inputs.tag }}"
           git push origin gh-pages
