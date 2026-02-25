@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "ws",
-      "source": "./plugin",
+      "source": "./",
       "description": "Map feature files into your ws working set with /ws:map",
       "homepage": "https://github.com/n-filatov/ws",
       "repository": "https://github.com/n-filatov/ws",
