@@ -5,8 +5,78 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// ── EnsureExists ─────────────────────────────────────────────────────────────
+
+func TestEnsureExists_CreatesFileWithDefaults(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if err := EnsureExists(); err != nil {
+		t.Fatalf("EnsureExists: %v", err)
+	}
+
+	path := filepath.Join(home, ".wsconfig")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("config file not created: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "editor=vim") {
+		t.Errorf("expected default editor in file:\n%s", content)
+	}
+	if !strings.Contains(content, "cleanup_days=7") {
+		t.Errorf("expected default cleanup_days in file:\n%s", content)
+	}
+}
+
+func TestEnsureExists_NoopWhenFileExists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	path := filepath.Join(home, ".wsconfig")
+	custom := "editor=nano\n"
+	if err := os.WriteFile(path, []byte(custom), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := EnsureExists(); err != nil {
+		t.Fatalf("EnsureExists: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != custom {
+		t.Errorf("EnsureExists overwrote existing file: got %q", string(data))
+	}
+}
+
+func TestEnsureExists_DefaultsAreLoadable(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	if err := EnsureExists(); err != nil {
+		t.Fatalf("EnsureExists: %v", err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load after EnsureExists: %v", err)
+	}
+	if cfg.Editor != "vim" {
+		t.Errorf("editor: want vim, got %q", cfg.Editor)
+	}
+	if cfg.CleanupDays != 7 {
+		t.Errorf("cleanup_days: want 7, got %d", cfg.CleanupDays)
+	}
+}
 
 // writeConfig writes content to ~/.wsconfig inside a temp home directory and
 // sets HOME so config.Load() picks it up. Returns a cleanup function.

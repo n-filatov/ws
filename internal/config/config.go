@@ -15,6 +15,40 @@ type Config struct {
 	CleanupDays int // days of inactivity before a working set is offered for cleanup; 0 = disabled
 }
 
+// defaultContent is written to ~/.wsconfig when the file is created for the
+// first time, giving users a self-documenting starting point.
+const defaultContent = `# ws configuration
+
+# Editor to open files with.
+editor=vim
+
+# Number of days of inactivity before a working set is offered for cleanup.
+# Set to 0 to disable.
+cleanup_days=7
+`
+
+// Path returns the path to the user's config file (~/.wsconfig).
+func Path() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not determine home directory: %w", err)
+	}
+	return filepath.Join(home, ".wsconfig"), nil
+}
+
+// EnsureExists creates ~/.wsconfig with default values if it does not already
+// exist. It is a no-op when the file is already present.
+func EnsureExists() error {
+	path, err := Path()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err == nil {
+		return nil // already exists
+	}
+	return os.WriteFile(path, []byte(defaultContent), 0o644)
+}
+
 // Load reads ~/.wsconfig and returns a Config.
 // Missing file is not an error — defaults are used.
 func Load() (*Config, error) {

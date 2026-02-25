@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/n-filatov/ws/internal/config"
@@ -22,6 +23,26 @@ func main() {
 	}
 
 	switch args[0] {
+	case "config":
+		if err := config.EnsureExists(); err != nil {
+			fatalf("error: %v\n", err)
+		}
+		path, err := config.Path()
+		if err != nil {
+			fatalf("error: %v\n", err)
+		}
+		cfg, err := config.Load()
+		if err != nil {
+			fatalf("error loading config: %v\n", err)
+		}
+		cmd := exec.Command(cfg.Editor, path)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fatalf("error: %v\n", err)
+		}
+
 	case "version":
 		fmt.Println("ws " + version)
 
@@ -75,7 +96,7 @@ func main() {
 		fmt.Println("working set cleared")
 
 	default:
-		fatalf("unknown command %q\n\nUsage:\n  ws                    open TUI\n  ws add <file>...      add files\n  ws rm <file>          remove a file\n  ws list               list tracked files\n  ws clear              clear working set\n  ws version            print version\n", args[0])
+		fatalf("unknown command %q\n\nUsage:\n  ws                    open TUI\n  ws add <file>...      add files\n  ws rm <file>          remove a file\n  ws list               list tracked files\n  ws clear              clear working set\n  ws config             edit configuration\n  ws version            print version\n", args[0])
 	}
 }
 
