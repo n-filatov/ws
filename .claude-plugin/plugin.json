@@ -1,7 +1,7 @@
 {
   "name": "ws",
   "description": "Map files relevant to a feature into your ws working set. Pairs with the ws CLI tool.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": { "name": "Nikita Filatov" },
   "homepage": "https://github.com/n-filatov/ws",
   "repository": "https://github.com/n-filatov/ws",
