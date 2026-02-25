@@ -52,6 +52,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release download "${{ github.event.release.tag_name || github.event.inputs.tag }}" \
+            --repo "${{ github.repository }}" \
             --pattern "*.deb" \
             --dir apt-repo/
 
