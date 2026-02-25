@@ -181,9 +181,37 @@ Each branch gets its own file: `.workingset-<branch-name>`. No conflicts, no `.g
 
 ## Integrations
 
-### Claude Code
+### Claude Code Plugin
 
-The primary use case. Prompt Claude to identify relevant files and pipe them directly into `ws`:
+Install the `ws` plugin and use `/ws:map` — describe a feature, Claude finds the files and adds them for you.
+
+```
+/ws:map user authentication flow
+/ws:map payment processing
+```
+
+Claude searches the codebase, identifies relevant files, and runs `ws add` for each one. Then open `ws` to navigate.
+
+**Install:**
+
+```
+/plugin marketplace add n-filatov/ws
+/plugin install ws@n-filatov-ws
+```
+
+**No plugin? Copy the skill directly:**
+
+```bash
+mkdir -p ~/.claude/skills/ws-map
+curl -fsSL https://raw.githubusercontent.com/n-filatov/ws/main/plugin/skills/map/SKILL.md \
+  -o ~/.claude/skills/ws-map/SKILL.md
+```
+
+Then use `/ws-map <feature>` in Claude Code.
+
+### Claude Code (manual)
+
+Prompt Claude to identify relevant files and pipe them directly into `ws`:
 
 ```
 Find all files related to the payment processing feature.
@@ -206,6 +234,19 @@ ws list | xargs grep "TODO"
 # count lines across working set files
 ws list | xargs wc -l
 ```
+
+---
+
+## Editor Extensions
+
+Official extensions integrate `ws` directly into your editor:
+
+| Editor | Repo | Features |
+|--------|------|----------|
+| **VS Code** | `n-filatov/ws-vscode` | Sidebar panel, Explorer badges, status bar, right-click to add |
+| **Zed** | `n-filatov/ws-zed` | `/ws` slash command injects working set into Claude context, tasks |
+
+Both extensions call the `ws` CLI — no separate setup needed beyond having `ws` installed.
 
 ---
 
