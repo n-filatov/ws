@@ -656,6 +656,12 @@ func (m Model) View() string {
 				displayLine += " ▶"
 			}
 
+			// Abbreviate or truncate long lines to fit the terminal width
+			if m.width > 0 {
+				boxPfx, content := splitBoxPrefix(displayLine)
+				displayLine = abbreviatePath(boxPfx, content, m.width)
+			}
+
 			// Apply fuzzy highlights to the filename portion
 			if fileIdx >= 0 && len(m.matchHighlights) > 0 {
 				relPath := m.files[fileIdx].RelPath
@@ -729,6 +735,14 @@ func (m Model) View() string {
 	default:
 		if m.err != "" {
 			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("  Error: "+m.err) + "\n")
+		} else if item := m.selectedNavItem(); item != nil {
+			var fullPath string
+			if item.fileIdx >= 0 {
+				fullPath = m.files[item.fileIdx].RelPath
+			} else {
+				fullPath = item.dirPath
+			}
+			sb.WriteString(styleFilePath.Render("  "+fullPath) + "\n")
 		} else {
 			sb.WriteString("\n")
 		}
@@ -757,4 +771,47 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// splitBoxPrefix separates the box-drawing tree prefix (spaces, │, ├, └, ─)
+// from the path content that follows it.
+func splitBoxPrefix(line string) (prefix, content string) {
+	for i, r := range line {
+		switch r {
+		case ' ', '│', '├', '└', '─':
+		default:
+			return line[:i], line[i:]
+		}
+	}
+	return line, ""
+}
+
+// abbreviatePath applies ghosty-style path abbreviation to fit within maxWidth.
+// Intermediate path segments are shortened to their first rune; the final segment is kept full.
+// Falls back to truncation with "…" if still too wide.
+func abbreviatePath(prefix, content string, maxWidth int) string {
+	full := prefix + content
+	if lipgloss.Width(full) <= maxWidth {
+		return full
+	}
+	parts := strings.Split(content, "/")
+	if len(parts) > 1 {
+		for i := 0; i < len(parts)-1; i++ {
+			runes := []rune(parts[i])
+			if len(runes) > 0 {
+				parts[i] = string(runes[:1])
+			}
+		}
+		content = strings.Join(parts, "/")
+		full = prefix + content
+		if lipgloss.Width(full) <= maxWidth {
+			return full
+		}
+	}
+	// last resort: truncate with ellipsis
+	runes := []rune(full)
+	if len(runes) > maxWidth-1 {
+		return string(runes[:maxWidth-1]) + "…"
+	}
+	return full
 }

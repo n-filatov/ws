@@ -28,6 +28,9 @@ var (
 			Foreground(lipgloss.Color("240")).
 			Italic(true)
 
+	styleFilePath = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("244"))
+
 	stylePrompt = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("214")).
 			Bold(true)
