@@ -279,6 +279,20 @@ Both extensions call the `ws` CLI — no separate setup needed beyond having `ws
 
 ---
 
+## Comparison
+
+| Feature | ws | lazygit | harpoon | zoxide | project.nvim |
+|---------|----|----|----|----|--------------|
+| **Scope** | Files (branch-scoped) | Git operations | File marks | Directories | Project-scoped files |
+| **AI-optimized** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Branch-aware** | ✅ Auto-switches | ✅ Git-native | ❌ No | ❌ No | ❌ No |
+| **Terminal UI** | ✅ Bubbletea | ✅ Custom | ❌ Editor plugin | ❌ CLI only | ❌ Editor plugin |
+| **Editor-agnostic** | ✅ Any editor | ✅ Any editor | ❌ Neovim only | ✅ Any shell | ❌ Neovim only |
+| **Git status** | ✅ Inline | ✅ Full view | ❌ No | ❌ No | ❌ No |
+| **Best for** | AI pair programming | Git workflows | Quick file access | Directory nav | Project switching |
+
+**Why ws?** Designed specifically for AI-assisted development. Keeps context tight and branch-scoped, making Claude Code, Cursor, and Copilot more effective.
+
 ## Alternatives
 
 - [lazygit](https://github.com/jesseduffield/lazygit) — terminal UI for git. Complementary: use lazygit for commits, `ws` for navigation.
