@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ws - Branch-Scoped Working Sets for AI-Assisted Development</title>
+    <meta name="description" content="ws is a terminal UI tool that maintains branch-scoped working sets of files. Built for AI pair programming with Claude Code, Cursor, and Copilot.">
+    <meta name="keywords" content="ws, working set, git, branch-scoped, terminal, TUI, AI, pair programming, Claude Code, Cursor, Copilot, Go, golang, CLI, developer tools">
+    <meta name="author" content="Nikita Filatov">
+    <meta name="license" content="MIT">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://github.com/n-filatov/ws">
+    <meta property="og:title" content="ws - Branch-Scoped Working Sets">
+    <meta property="og:description" content="AI-native terminal tool for managing working sets across git branches">
+    <meta property="og:image" content="https://github.com/n-filatov/ws/raw/main/docs/press-kit/logo/ws-logo.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://github.com/n-filatov/ws">
+    <meta name="twitter:title" content="ws - Branch-Scoped Working Sets">
+    <meta name="twitter:description" content="AI-native terminal tool for managing working sets across git branches">
+    <meta name="twitter:image" content="https://github.com/n-filatov/ws/raw/main/docs/press-kit/logo/ws-logo.png">
+
+    <!-- Schema.org -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ws",
+      "operatingSystem": "Linux, macOS, Windows",
+      "applicationCategory": "DeveloperApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "description": "Branch-scoped working set manager for git repositories",
+      "author": {
+        "@type": "Person",
+        "name": "Nikita Filatov",
+        "email": "keddofilatov@gmail.com"
+      },
+      "license": "https://opensource.org/licenses/MIT",
+      "url": "https://github.com/n-filatov/ws"
+    }
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #22c55e;
+            --purple: #a855f7;
+            --border: #475569;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 20px 0;
+        }
+
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-left: 30px;
+            transition: color 0.3s;
+        }
+
+        nav a:hover {
+            color: var(--accent);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 100px 0;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 24px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .cta-button:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Features */
+        .features {
+            padding: 80px 0;
+            background: var(--bg-secondary);
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 40px;
+            margin-bottom: 60px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+
+        .feature-card {
+            background: var(--bg-tertiary);
+            padding: 32px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .feature-card h3 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: var(--accent);
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+        }
+
+        /* Demo */
+        .demo {
+            padding: 80px 0;
+        }
+
+        .demo h2 {
+            text-align: center;
+            font-size: 40px;
+            margin-bottom: 40px;
+        }
+
+        .terminal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+
+        .terminal-line {
+            margin-bottom: 8px;
+        }
+
+        .terminal-prompt {
+            color: var(--success);
+        }
+
+        .terminal-command {
+            color: var(--text-primary);
+        }
+
+        .terminal-output {
+            color: var(--text-secondary);
+        }
+
+        /* Installation */
+        .installation {
+            padding: 80px 0;
+            background: var(--bg-secondary);
+        }
+
+        .installation h2 {
+            text-align: center;
+            font-size: 40px;
+            margin-bottom: 40px;
+        }
+
+        .install-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .install-method {
+            background: var(--bg-tertiary);
+            padding: 24px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .install-method h3 {
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+
+        .install-method code {
+            display: block;
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: 4px;
+            margin: 12px 0;
+            overflow-x: auto;
+        }
+
+        /* Integrations */
+        .integrations {
+            padding: 80px 0;
+        }
+
+        .integrations h2 {
+            text-align: center;
+            font-size: 40px;
+            margin-bottom: 40px;
+        }
+
+        .integration-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .integration-item {
+            background: var(--bg-secondary);
+            padding: 16px 24px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-secondary);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 36px;
+            }
+
+            .hero p {
+                font-size: 18px;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <div class="logo">ws <span>working set</span></div>
+            <nav>
+                <a href="#features">Features</a>
+                <a href="#demo">Demo</a>
+                <a href="#install">Install</a>
+                <a href="https://github.com/n-filatov/ws">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <h1>Keep Track of Files That Matter</h1>
+            <p>Branch-scoped working sets for AI-assisted development. Stop losing context. Start building.</p>
+            <a href="#install" class="cta-button">Get Started</a>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Why ws?</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h3>🌿 Branch-Scoped</h3>
+                    <p>Each git branch has its own working set. Switch branches, your context switches too. No manual cleanup.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🤖 AI-Native</h3>
+                    <p>Built for AI pair programming with Claude Code, Cursor, and Copilot. Give AI focused context.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>💾 Persistent</h3>
+                    <p>Working sets survive terminal sessions. Open ws tomorrow — your files are still there.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>📂 Git-Aware</h3>
+                    <p>Shows inline git status. Auto-adds modified files. Knows your repo better than you do.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🔍 Fuzzy Search</h3>
+                    <p>Press <code>/</code> to instantly filter your working set. Find files in milliseconds.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>⚡ Fast</h3>
+                    <p>Built with Go + Bubbletea. Startup in &lt;100ms. Zero dependencies. Single binary.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Demo -->
+    <section id="demo" class="demo">
+        <div class="container">
+            <h2>See ws in Action</h2>
+            <div class="terminal">
+                <div class="terminal-line"><span class="terminal-prompt">$</span> <span class="terminal-command">ws add src/auth/login.go src/auth/jwt.go src/middleware/auth.go</span></div>
+                <div class="terminal-line"><span class="terminal-output">✓ Added 3 files to working set</span></div>
+                <div class="terminal-line"><span class="terminal-prompt">$</span> <span class="terminal-command">ws</span></div>
+                <div class="terminal-line"><span class="terminal-output">src/</span></div>
+                <div class="terminal-line"><span class="terminal-output">  auth/</span></div>
+                <div class="terminal-line"><span class="terminal-output">    login.go         M</span></div>
+                <div class="terminal-line"><span class="terminal-output">    jwt.go           A</span></div>
+                <div class="terminal-line"><span class="terminal-output">  middleware/</span></div>
+                <div class="terminal-line"><span class="terminal-output">    auth.go         M</span></div>
+                <div class="terminal-line"><span class="terminal-output"></span></div>
+                <div class="terminal-line"><span class="terminal-output">Press [e] to open • [/] to search • [r] to refresh • [q] to quit</span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation -->
+    <section id="install" class="installation">
+        <div class="container">
+            <h2>Installation</h2>
+            <div class="install-methods">
+                <div class="install-method">
+                    <h3>🍺 Homebrew</h3>
+                    <p>macOS & Linux</p>
+                    <code>brew tap n-filatov/tap && brew install ws</code>
+                </div>
+                <div class="install-method">
+                    <h3>📦 APT</h3>
+                    <p>Debian & Ubuntu</p>
+                    <code>curl -fsSL https://n-filatov.github.io/ws/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/ws.gpg && echo "deb [signed-by=/usr/share/keyrings/ws.gpg] https://n-filatov.github.io/ws ./" | sudo tee /etc/apt/sources.list.d/ws.list && sudo apt update && sudo apt install ws</code>
+                </div>
+                <div class="install-method">
+                    <h3>🔷 Go</h3>
+                    <p>Any platform</p>
+                    <code>go install github.com/n-filatov/ws@latest</code>
+                </div>
+                <div class="install-method">
+                    <h3>📜 Source</h3>
+                    <p>Build from source</p>
+                    <code>git clone https://github.com/n-filatov/ws && cd ws && make install</code>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Integrations -->
+    <section class="integrations">
+        <div class="container">
+            <h2>Integrations</h2>
+            <div class="integration-list">
+                <div class="integration-item">Claude Code</div>
+                <div class="integration-item">Cursor AI</div>
+                <div class="integration-item">GitHub Copilot</div>
+                <div class="integration-item">VS Code</div>
+                <div class="integration-item">Zed</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>Built with Go + Bubbletea • MIT License</p>
+            <p>
+                <a href="https://github.com/n-filatov/ws">GitHub</a> •
+                <a href="https://github.com/n-filatov/ws/issues">Issues</a> •
+                <a href="https://github.com/n-filatov/ws/blob/main/LICENSE">License</a>
+            </p>
+            <p>© 2025 Nikita Filatov</p>
+        </div>
+    </footer>
+</body>
+</html>
