@@ -1,9 +1,61 @@
 {
   "name": "ws",
-  "description": "Map files relevant to a feature into your ws working set. Pairs with the ws CLI tool.",
-  "version": "1.1.0",
+  "description": "Manage branch-scoped working sets of files. Pairs with the ws CLI tool.",
+  "version": "1.2.0",
   "author": { "name": "Nikita Filatov" },
   "homepage": "https://github.com/n-filatov/ws",
   "repository": "https://github.com/n-filatov/ws",
-  "license": "MIT"
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "ws:map",
+      "description": "Search codebase for files related to a feature and add them to working set",
+      "parameters": [
+        {
+          "name": "feature",
+          "description": "Feature description to search for",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "ws:add",
+      "description": "Add files to the current branch's working set",
+      "parameters": [
+        {
+          "name": "files",
+          "description": "File paths to add",
+          "required": true,
+          "variadic": true
+        }
+      ]
+    },
+    {
+      "name": "ws:remove",
+      "description": "Remove a file from the working set",
+      "parameters": [
+        {
+          "name": "file",
+          "description": "File path to remove",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "ws:open",
+      "description": "Open the ws TUI to view and navigate your working set"
+    },
+    {
+      "name": "ws:list",
+      "description": "List all files in the current working set"
+    },
+    {
+      "name": "ws:clear",
+      "description": "Clear all files from the current branch's working set"
+    },
+    {
+      "name": "ws:install",
+      "description": "Install the ws CLI tool (detects OS and package manager)"
+    }
+  ]
 }
