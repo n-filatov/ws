@@ -165,6 +165,16 @@ echo "deb [signed-by=/usr/share/keyrings/ws.gpg] https://n-filatov.github.io/ws 
 sudo apt update && sudo apt install ws
 ```
 
+### Go install
+
+```bash
+go install github.com/n-filatov/ws@latest
+```
+
+This installs the binary to `$GOPATH/bin` (usually `~/go/bin/`). Make sure `$GOPATH/bin` is in your `PATH`.
+
+**Requirements:** Go 1.21+
+
 ### From source
 
 ```bash
