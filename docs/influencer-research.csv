@@ -1,0 +1,70 @@
+Name,Platform,Handle/Follower Count,Content Focus,Contact Method,Relevance to ws,Notes
+ThePrimeagen,YouTube,"@259k subscribers",CLI tools, developer workflow,Twitter @ThePrimeagen,High - creates dev tool content,Terminal-focused audience
+Ben Awad,YouTube,"@1.25M subscribers",Full-stack, TypeScript,Twitter @benawad,Medium - full-stack focused,Not CLI-specific but large dev audience
+Fireship,YouTube,"@2.5M subscribers",Quick tech explainers,Twitter @fireship_dev,Low - too broad,May consider if CLI tools video
+Theo - t3.gg,YouTube,"@500k subscribers",Web dev, tools,Twitter @t3dotgg,Medium - tool reviews,Open to CLI content
+Matt Pocock,YouTube,"@200k subscribers",TypeScript, teaching,Twitter @mattpocockuk,Low - TypeScript focused,Not a fit
+CodeAesthetic,YouTube,"@400k subscribers",Computer science, tools,Twitter @codeAesthetic,Medium - discusses tool design,Philosophical fit
+Hyperplexed,YouTube,"@400k subscribers",Terminal tools, CLI,Twitter @hyperplexed,High - CLI content,Linux tools audience
+Josh Comeau,YouTube,"@150k subscribers",React, CSS,Twitter @joshwcomeau,Low - frontend focused,Not a fit
+Web Dev Simplified,YouTube,"@900k subscribers",Web dev tutorials,Twitter @kentcdodds,Low - web dev focused,Not a fit
+Traversy Media,YouTube,"@2M subscribers",Full-stack tutorials,Twitter @traversymedia,Low - tutorial focused,Not a fit
+David Beath,YouTube,"@50k subscribers",Indie dev tools,Twitter @davidbeath,High - tool reviews,Small but engaged
+TJ DeVries,YouTube,"@250k subscribers",Neovim, CLI,Twitter @teej_dv,Medium - Vim/Neovim,Editor plugin opportunity
+Viktor Ruen,YouTube,"@30k subscribers",Developer tools,TikTok @viktorguru,Medium - dev tips,Younger audience
+Chris Penner,YouTube,"@50k subscribers",Haskell, CLI tools,Twitter @chrislpennett,High - CLI tool author,Peer audience
+Ashton Wiersdorf,YouTube,"@20k subscribers",Developer tools,Blog ashton.w,Medium - deep dives,Technical audience
+Alex Pleiner,YouTube,"@15k subscribers",Developer tools,Twitter @pleiner,Medium - tool reviews,Niche but relevant
+Liam H,YouTube,"@100k subscribers",Linux, CLI,Twitter @liam-h,High - terminal content,Linux-focused
+Nick Janetakis,YouTube,"@60k subscribers",Docker, CLI,Twitter @nickjanetakis,Medium - dev workflow,Tool-oriented
+Jay Sims,YouTube,"@40k subscribers",Developer workflow,TikTok @jaysims,Medium - productivity tips,Workflow angle
+Gregory Schier,YouTube,"@150k subscribers",Productivity tools,Twitter @gregschier,Low - general productivity,Not dev-specific
+Katherine Oelsner,YouTube,"@30k subscribers",Developer tools,Twitter @katherinecodes,High - tool reviews,Women in tech
+Robert Heessels,YouTube,"@25k subscribers",Indie dev tools,Twitter @robertheessels,Medium - CLI tools,Peer audience
+Danny Postma,YouTube,"@15k subscribers",Indie hacking,Twitter @dannypostmaa,Low - business focused,Not a fit
+Justin Mazur,YouTube,"@20k subscribers",Dev tools,Twitter @jmazour,Medium - practical tools,Good fit
+Jonatan Carlander,YouTube,"@10k subscribers",Terminal tools,Twitch @jonatancarlander,High - live coding,Interactive demos
+System Crafters,YouTube,"@80k subscribers",Emacs, CLI,Twitter @systemcrafters,High - power users,Terminal-focused
+Ryan Celsius,YouTube,"@40k subscribers",Linux tools,Twitch @ryence,Medium - CLI tools,Gaming/dev crossover
+Distrotube,YouTube,"@300k subscribers",Linux tools,Twitter @distrotube,High - Linux CLI,Package managers
+Luke Smith,YouTube,"@600k subscribers",Linux, minimalist,Twitter @lukesmithxyz,Medium - terminal users,Unix philosophy fit
+DistroTube,YouTube,"@300k subscribers",Linux CLI tools,Twitter @DistroTube,High - CLI reviews,Terminal audience
+Uncle Scientist,YouTube,"@50k subscribers",Linux tools,Twitch @unclescientist,Medium - CLI tools,Live coding
+Hick Harry,YouTube,"@60k subscribers",CLI tools,Twitter @hickcode,High - Linux CLI,Scripting focus
+Savvy Tech,YouTube,"@30k subscribers",Dev tools,TikTok @savvytech,Medium - quick tips,Short-form content
+Code Dope,YouTube,"@45k subscribers",Linux tools,Twitter @codedope,Medium - CLI tutorials,Educational
+Erik O'shaughnessy,YouTube,"@20k subscribers",Shell scripting,Twitter @jollyjinx,Medium - terminal power users,Technical depth
+Bret,YouTube,"@15k subscribers",Developer tools,Twitter @bretfisher,High - developer tools,Docker/Dev focus
+Amjith Ramanujam,YouTube,"@30k subscribers",CLI tools,Twitter @amjithpg,High - CLI design,PagerDuty CLI author
+Simon,YouTube,"@25k subscribers",Linux CLI,Twitter @ubuntupit,Medium - terminal users,Ubuntu-focused
+Chris Wells,YouTube,"@40k subscribers",Dev tools,Twitter @christopherwells,Medium - productivity tools,Workflow fit
+Jake Wright,YouTube,"@150k subscribers",Web dev, tools,Twitter @jakewright,Low - web focused,Not a fit
+Fireship.io,Blog,"@500k newsletter",Quick tech explainers,Twitter @fireship_io,Low - too broad,One-off possibility
+HackerTab,Blog,"@50k monthly",Developer tools,Newsletter,High - dev audience,Newsletter placement
+Cooperpress,Blog,"@40k weekly",Ruby news,Newsletter,Low - Ruby focused,Not a fit
+Golang Weekly,Newsletter,"@60k weekly",Go news,Newsletter,High - Go developers,Primary audience
+System Override,Newsletter,"@50k weekly",Dev tools,Newsletter,High - CLI tools,Perfect fit
+Hacker Newsletter,Newsletter,"@200k weekly",Tech news,Newsletter,Medium - broad tech,HN summary
+Pragmatic Engineer,Newsletter,"@250k weekly",Engineering,Newsletter,Low - engineering focus,Not tools
+ByteByteGo,Newsletter,"@200k weekly",System design,Newsletter,Low - architecture focus,Not CLI
+Caleb Heath,Blog,"@10k monthly",Dev tools,Newsletter,High - tool reviews,Peer community
+Gabe Rapoport,Blog,"@5k monthly",Indie dev tools,Newsletter,High - tool reviews,Peer fit
+Lee Robinson,Blog,"@50k monthly",NextJS, Vercel,Twitter @leeerob,Low - web framework focused,Not a fit
+Delba de Oliveira,Blog,"@30k monthly",Developer tools,Twitter @delba_oliveira,Medium - tools reviews,Vercel focus
+Shruti Kapoor,Twitter,"@50k followers",Developer tools,Twitter @shrutikapoor08,Medium - dev advocacy,Women in tech
+Kent C. Dodds,Twitter,"@200k followers",React, testing,Twitter @kentcdodds,Low - React focused,Not a fit
+Dan Abramov,Twitter,"@300k followers",React, Facebook,Twitter @dan_abramov2,Low - React focused,Not a fit
+Ryan Florence,Twitter,"@100k followers",React, teaching,Twitter @ryanflorence,Low - React focused,Not a fit
+Michael Jackson,Twitter,"@80k followers",React, unstate,Twitter @mjackson,Low - React focused,Not a fit
+Sindre Sorhus,Twitter,"@100k followers",Open source, CLI,Twitter @sindresorhus,High - CLI tools,Peer fit
+Felix Rieseberg,Twitter,"@150k followers",VS Code, Electron,Twitter @felixrieseberg,Low - editor focused,Maybe extension
+Scott Hanselman,Blog,"@1.5M monthly",.NET, dev tools,Twitter @shanselman,Low - .NET focused,Not a fit
+Scott Hanselman,Twitter,"@500k followers",.NET, Microsoft,Twitter @shanselman,Low - .NET focused,Not a fit
+David Heinemeier Hansson,Twitter,"@200k followers",Ruby, Rails,Twitter @dhh,Low - Ruby focused,Not a fit
+Guillermo Rauch,Twitter,"@300k followers",NextJS, Vercel,Twitter @rauchg,Low - web framework,Not a fit
+Evan You,Twitter,"@200k followers",Vue, Vite,Twitter @youyuxi,Low - frontend focused,Not a fit
+Sebastian McKenzie,Twitter,"@100k followers",Babel, Rome,Twitter @sebmck,Medium - tooling,Tooling overlap
+James Long,Twitter,"@50k followers",React, tools,Twitter @jlongster,Medium - tool reviews,Tooling fit
+Matthias Endler,Twitter,"@20k followers",Rust, CLI,Twitter @matthiasendler,High - CLI tools,Rust/Go overlap
+Stefan Judis,Twitter,"@50k followers",Web dev, tips,Twitter @stefanjudis,Low - web focused,Not a fit
+Hussain Toloo,Blog,"@10k monthly",CLI tools,Newsletter,High - CLI reviews,Niche but engaged
